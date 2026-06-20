@@ -1,28 +1,33 @@
 const mongoose = require("mongoose");
+
 const employerSchema = mongoose.Schema(
   {
-    userId: mongoose.Schema.Types.ObjectId,
-    employerName: { type: String, required: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    employerName: { type: String, required: true, trim: true },
     employerContact: Number,
-    employerMail: String,
+    employerMail: { type: String, trim: true },
     companyName: String,
     companyAddress: String,
     jobsListed: [
       {
         jobId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'JobListing'
-        }
-      }
+          ref: "JobListing",
+        },
+      },
     ],
     applications: [
       {
         applicationId: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'Application'
-        }
-      }
-    ]
+          ref: "Application",
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
