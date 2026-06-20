@@ -23,5 +23,14 @@
     "nodemon": "^3.1.10",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ghusharibdev/Job-Board-Platform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ghusharibdev/Job-Board-Platform/issues"
+  },
+  "homepage": "https://github.com/ghusharibdev/Job-Board-Platform#readme"
 }
