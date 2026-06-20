@@ -5,90 +5,138 @@ const Employer = require("../models/Employer");
 const JobListing = require("../models/JobListing");
 
 const updateDetails = async (req, res) => {
-  const {
-    employerName,
-    employerContact,
-    employerMail,
-    companyName,
-    companyAddress,
-    jobsListed,
-  } = req.body;
-  const employer = await Employer.findOne({ userId: req.user._id });
+  try {
+    if (req.user.userType !== "Employer") {
+      return res.status(403).json({ message: "Only employers can update details!" });
+    }
 
-  const updatedEmployee = await Employer.findOneAndUpdate(
-    { _id: employer._id },
-    {
+    const {
       employerName,
       employerContact,
       employerMail,
       companyName,
       companyAddress,
-      $addToSet: {
+      jobsListed = [],
+    } = req.body;
+
+    const employer = await Employer.findOne({ userId: req.user._id });
+    if (!employer) {
+      return res.status(404).json({ message: "Employer profile not found!" });
+    }
+
+    const updateData = {
+      employerName,
+      employerContact,
+      employerMail,
+      companyName,
+      companyAddress,
+    };
+
+    if (Array.isArray(jobsListed) && jobsListed.length > 0) {
+      updateData.$addToSet = {
         jobsListed: {
           $each: jobsListed.map((jobId) => ({ jobId })),
         },
-      },
+      };
     }
-  );
-  if (!updatedEmployee) return res.status(400).json({ message: "Failed!" });
-  res.json({ message: "Employer updated successfully!" });
+
+    const updatedEmployer = await Employer.findOneAndUpdate(
+      { _id: employer._id },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedEmployer) {
+      return res.status(400).json({ message: "Failed!" });
+    }
+
+    res.json({ message: "Employer updated successfully!", employer: updatedEmployer });
+  } catch (error) {
+    console.error("Error updating employer:", error);
+    res.status(500).json({ message: "Error updating employer!" });
+  }
 };
 
 const jobPost = async (req, res) => {
-  if (!req.user) {
-    return res.status(401).send("Login required!");
+  try {
+    if (!req.user) {
+      return res.status(401).send("Login required!");
+    }
+
+    if (req.user.userType !== "Employer") {
+      return res.status(403).send("Only employers can post jobs!");
+    }
+
+    const { jobTitle, jobDescription, experience, salary, role } = req.body;
+
+    const employer = await Employer.findOne({ userId: req.user._id });
+    if (!employer) {
+      return res.status(404).json({ message: "Employer profile not found!" });
+    }
+
+    const savedJob = await JobListing.create({
+      jobTitle,
+      jobDescription,
+      experience,
+      salary,
+      offeredBy: { employerId: employer._id },
+      role,
+    });
+
+    employer.jobsListed.addToSet({ jobId: savedJob._id });
+    await employer.save();
+
+    res.status(201).json({ message: "Job posted successfully!", job: savedJob });
+  } catch (error) {
+    console.error("Error posting job:", error);
+    res.status(500).json({ message: "Couldn't post job!" });
   }
-
-  if (req.user.userType !== "Employer") {
-    return res.status(403).send("Only employers can post jobs!");
-  }
-
-  const { jobTitle, jobDescription, experience, salary, role } = req.body;
-  const employer = await Employer.findOne({ userId: req.user._id });
-
-  const savedJob = await JobListing.create({
-    jobTitle,
-    jobDescription,
-    experience,
-    salary,
-    offeredBy: { employerId: employer._id },
-    role,
-  });
-
-  if (!savedJob) return res.status(400).send("Couldn't post job!");
-  res.send("Job posted successfully!");
 };
 
 const updateApplicationStatus = async (req, res) => {
-  const { applicationId, status } = req.body;
-  const findApplicationEmployer = await Employer.findOne({
-    "applications.applicationId": applicationId,
-  });
-  if (!findApplicationEmployer)
-    return res
-      .status(404)
-      .json({ message: "No such application for this employer" });
+  try {
+    if (req.user.userType !== "Employer") {
+      return res.status(403).json({ message: "Only employers can update application status!" });
+    }
 
-  const findApplication = await Application.findOneAndUpdate(
-    { _id: applicationId },
-    { status }
-  );
+    const { applicationId, status } = req.body;
 
-  if (!findApplication)
-    return res
-      .status(400)
-      .json({ message: "Couldn't update application status!" });
+    if (!applicationId || !status) {
+      return res.status(400).json({ message: "Application ID and status are required!" });
+    }
 
-  const candidate = await Candidate.findOne({
-    _id: findApplication.from.candidateId,
-  });
+    if (!["pending", "rejected", "accepted"].includes(status)) {
+      return res.status(400).json({ message: "Invalid application status!" });
+    }
 
-  notifyCandidate(candidate, findApplication);
+    const employer = await Employer.findOne({ userId: req.user._id });
+    if (!employer) {
+      return res.status(404).json({ message: "Employer profile not found!" });
+    }
 
-  res.json({
-    message: "Status updated successfully!",
-    updatedApplication: findApplication,
-  });
+    const updatedApplication = await Application.findOneAndUpdate(
+      { _id: applicationId, "to.employerId": employer._id },
+      { status },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedApplication) {
+      return res.status(404).json({ message: "No such application for this employer" });
+    }
+
+    const candidate = await Candidate.findById(updatedApplication.from.candidateId);
+    if (candidate) {
+      notifyCandidate(candidate, updatedApplication);
+    }
+
+    res.json({
+      message: "Status updated successfully!",
+      updatedApplication,
+    });
+  } catch (error) {
+    console.error("Error updating application status:", error);
+    res.status(500).json({ message: "Couldn't update application status!" });
+  }
 };
 
 const getDashboard = async (req, res) => {
@@ -106,14 +154,14 @@ const getDashboard = async (req, res) => {
     const totalJobs = jobs.length;
 
     const applications = await Application.find({ "to.employerId": employer._id })
-      .populate('from.candidateId')
-      .populate('forJob.jobId')
+      .populate("from.candidateId")
+      .populate("forJob.jobId")
       .sort({ createdAt: -1 });
 
     const totalApplications = applications.length;
-    const pendingApplications = applications.filter(app => app.status === 'pending').length;
-    const acceptedApplications = applications.filter(app => app.status === 'accepted').length;
-    const rejectedApplications = applications.filter(app => app.status === 'rejected').length;
+    const pendingApplications = applications.filter((app) => app.status === "pending").length;
+    const acceptedApplications = applications.filter((app) => app.status === "accepted").length;
+    const rejectedApplications = applications.filter((app) => app.status === "rejected").length;
 
     const recentApplications = applications.slice(0, 5);
 
@@ -121,17 +169,17 @@ const getDashboard = async (req, res) => {
       employer: {
         name: employer.employerName,
         company: employer.companyName,
-        email: employer.employerMail
+        email: employer.employerMail,
       },
       statistics: {
         totalJobs,
         totalApplications,
         pendingApplications,
         acceptedApplications,
-        rejectedApplications
+        rejectedApplications,
       },
       recentApplications,
-      jobs
+      jobs,
     });
   } catch (error) {
     console.error("Error getting dashboard:", error);
@@ -151,24 +199,26 @@ const getJobs = async (req, res) => {
     }
 
     const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     const jobs = await JobListing.find({ "offeredBy.employerId": employer._id })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNumber);
 
     const total = await JobListing.countDocuments({ "offeredBy.employerId": employer._id });
 
     res.json({
       jobs,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        currentPage: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
         totalJobs: total,
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1
-      }
+        hasNextPage: pageNumber * limitNumber < total,
+        hasPrevPage: pageNumber > 1,
+      },
     });
   } catch (error) {
     console.error("Error getting jobs:", error);
@@ -188,7 +238,9 @@ const getApplications = async (req, res) => {
     }
 
     const { status, jobId, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     let query = { "to.employerId": employer._id };
     if (status) {
@@ -199,23 +251,23 @@ const getApplications = async (req, res) => {
     }
 
     const applications = await Application.find(query)
-      .populate('from.candidateId')
-      .populate('forJob.jobId')
+      .populate("from.candidateId")
+      .populate("forJob.jobId")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNumber);
 
     const total = await Application.countDocuments(query);
 
     res.json({
       applications,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        currentPage: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
         totalApplications: total,
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1
-      }
+        hasNextPage: pageNumber * limitNumber < total,
+        hasPrevPage: pageNumber > 1,
+      },
     });
   } catch (error) {
     console.error("Error getting applications:", error);
@@ -231,7 +283,9 @@ const getApplicationsByJob = async (req, res) => {
 
     const { jobId } = req.params;
     const { status, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     const employer = await Employer.findOne({ userId: req.user._id });
     if (!employer) {
@@ -240,27 +294,27 @@ const getApplicationsByJob = async (req, res) => {
 
     const job = await JobListing.findOne({
       _id: jobId,
-      "offeredBy.employerId": employer._id
+      "offeredBy.employerId": employer._id,
     });
 
     if (!job) {
       return res.status(404).json({ message: "Job not found!" });
     }
 
-    let query = { 
+    let query = {
       "to.employerId": employer._id,
-      "forJob.jobId": jobId
+      "forJob.jobId": jobId,
     };
     if (status) {
       query.status = status;
     }
 
     const applications = await Application.find(query)
-      .populate('from.candidateId')
-      .populate('forJob.jobId')
+      .populate("from.candidateId")
+      .populate("forJob.jobId")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNumber);
 
     const total = await Application.countDocuments(query);
 
@@ -268,12 +322,12 @@ const getApplicationsByJob = async (req, res) => {
       job,
       applications,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        currentPage: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
         totalApplications: total,
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1
-      }
+        hasNextPage: pageNumber * limitNumber < total,
+        hasPrevPage: pageNumber > 1,
+      },
     });
   } catch (error) {
     console.error("Error getting applications by job:", error);
@@ -288,5 +342,5 @@ module.exports = {
   getDashboard,
   getJobs,
   getApplications,
-  getApplicationsByJob
+  getApplicationsByJob,
 };
