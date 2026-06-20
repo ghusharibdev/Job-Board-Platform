@@ -1,20 +1,26 @@
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
-const notifyEmployer = async (employer, jobApplication) => {
-  const transporter = nodemailer.createTransport({
+const createTransporter = () => {
+  return nodemailer.createTransport({
     service: "gmail",
     auth: {
-      user: "ghusharibnajam@gmail.com",
+      user: process.env.MAILER_EMAIL || "ghusharibnajam@gmail.com",
       pass: process.env.MAILER_PASSWORD,
     },
   });
+};
+
+const notifyEmployer = async (employer, jobApplication) => {
+  if (!employer.employerMail || !process.env.MAILER_PASSWORD) return;
+
+  const transporter = createTransporter();
 
   const mailOptions = {
-    from: "ghusharibnajam@gmail.com",
+    from: process.env.MAILER_EMAIL || "ghusharibnajam@gmail.com",
     to: employer.employerMail,
-    subject: "New Application recieved!",
-    text: `You have recieved a new application for job listing: ${jobApplication}`,
+    subject: "New Application Received!",
+    text: `You have received a new application. Application ID: ${jobApplication._id}`,
   };
 
   try {
@@ -26,19 +32,15 @@ const notifyEmployer = async (employer, jobApplication) => {
 };
 
 const notifyCandidate = async (candidate, jobApplication) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: "ghusharibnajam@gmail.com",
-      pass: process.env.MAILER_PASSWORD,
-    },
-  });
+  if (!candidate.candidateMail || !process.env.MAILER_PASSWORD) return;
+
+  const transporter = createTransporter();
 
   const mailOptions = {
-    from: "ghusharibnajam@gmail.com",
+    from: process.env.MAILER_EMAIL || "ghusharibnajam@gmail.com",
     to: candidate.candidateMail,
     subject: "Application Status Updated",
-    text: `Your job application status has been updated: ${jobApplication}`,
+    text: `Your job application status has been updated to: ${jobApplication.status}`,
   };
 
   try {
