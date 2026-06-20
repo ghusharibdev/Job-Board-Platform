@@ -9,9 +9,9 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (userId, done) => {
   try {
-    const finduser = await User.findById(userId);
-    if (!finduser) return done(null, false);
-    done(null, finduser);
+    const findUser = await User.findById(userId);
+    if (!findUser) return done(null, false);
+    done(null, findUser);
   } catch (err) {
     done(err, null);
   }
@@ -21,9 +21,12 @@ passport.use(
   new Strategy(async (username, password, done) => {
     try {
       const findUser = await User.findOne({ username });
-      if (!findUser) return done(null, false, {message: "User not found!"})
-      if (!comparePass(password, findUser.password))
-        return done(null, false, {message: "Wrong credentials!"})
+      if (!findUser) return done(null, false, { message: "User not found!" });
+
+      if (!comparePass(password, findUser.password)) {
+        return done(null, false, { message: "Wrong credentials!" });
+      }
+
       done(null, findUser);
     } catch (error) {
       console.log(error.message);

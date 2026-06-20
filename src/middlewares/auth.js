@@ -3,7 +3,7 @@ const auth = (req, res, next) => {
     return next();
   }
 
-  return res.status(401).send("Login to continue");
+  return res.status(401).json({ message: "Login to continue" });
 };
 
 module.exports = { auth };

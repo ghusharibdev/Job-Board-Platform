@@ -4,38 +4,46 @@ const Employer = require("../models/Employer");
 const User = require("../models/User");
 
 const signup = async (req, res) => {
-  const { username, password, userType, name } = req.body;
-  const hashed = hashPass(password);
+  try {
+    const { username, password, userType, name } = req.body;
 
-  const findUser = await User.findOne({ username });
-  if (findUser) {
-    return res.status(409).json({ message: "User already signed up!" });
-  }
+    if (!username || !password || !userType || !name) {
+      return res.status(400).json({ message: "Username, password, user type and name are required!" });
+    }
 
-  const newUser = await User.create({ username, password: hashed, userType });
-  if (!newUser) {
-    return res.status(400).send("Failed to signup!");
-  }
+    if (!['Candidate', 'Employer'].includes(userType)) {
+      return res.status(400).json({ message: "Invalid user type!" });
+    }
 
-  if (userType === "Employer") {
-    (await Employer.create({
-      userId: newUser._id,
-      employerName: name,
-    }))
-      ? res.send("Sign up successfull!")
-      : res.status(400).json({ message: "Employer name is required!" });
-  } else if (userType === "Candidate") {
-    (await Candidate.create({
-      userId: newUser._id,
-      candidateName: name,
-    }))
-      ? res.send("Sign up successfull!")
-      : res.status(400).json({ message: "Candidate Name is required!" });
+    const findUser = await User.findOne({ username });
+    if (findUser) {
+      return res.status(409).json({ message: "User already signed up!" });
+    }
+
+    const hashed = hashPass(password);
+    const newUser = await User.create({ username, password: hashed, userType });
+
+    if (userType === "Employer") {
+      await Employer.create({
+        userId: newUser._id,
+        employerName: name,
+      });
+    } else if (userType === "Candidate") {
+      await Candidate.create({
+        userId: newUser._id,
+        candidateName: name,
+      });
+    }
+
+    res.status(201).json({ message: "Sign up successful!" });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ message: "Failed to signup!" });
   }
 };
 
 const login = (req, res) => {
-  res.send("Logged In!");
+  res.json({ message: "Logged In!", user: req.user });
 };
 
 const logout = (req, res) => {
@@ -50,5 +58,5 @@ const logout = (req, res) => {
 module.exports = {
   signup,
   login,
-  logout
+  logout,
 };
