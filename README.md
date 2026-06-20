@@ -188,19 +188,23 @@ http://localhost:3000
 
 ### Employer Authentication
 
-![Employer Authentication](assets/screenshots/employer-auth.png)
+<img width="1191" height="815" alt="Screenshot 2026-06-20 163739" src="https://github.com/user-attachments/assets/d1f077d9-07ff-42d6-aa12-6e6acf85db30" />
+
 
 ### Job Posting
 
-![Job Posting](assets/screenshots/job-posting.png)
+<img width="1197" height="841" alt="Screenshot 2026-06-20 163825" src="https://github.com/user-attachments/assets/8fea9f71-85a6-4d9b-be86-21ccabc0ca92" />
+
 
 ### Candidate Application
 
-![Candidate Application](assets/screenshots/candidate-application.png)
+<img width="1175" height="796" alt="Screenshot 2026-06-20 164356" src="https://github.com/user-attachments/assets/59f3bf15-a37c-4127-a3e5-745f8987bd4b" />
+
 
 ### Application Status Management
 
-![Application Status Management](assets/screenshots/status-update.png)
+<img width="1182" height="851" alt="Screenshot 2026-06-20 164939" src="https://github.com/user-attachments/assets/f4e655b9-5bdd-4493-bbc8-7dbfbe84124b" />
+
 
 ## Environment Variables
 
