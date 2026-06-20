@@ -3,40 +3,49 @@ const session = require("express-session");
 const app = express();
 require("dotenv").config();
 const employerRouter = require("./src/routes/employerRoutes");
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const mongoose = require("mongoose");
 const passport = require("passport");
 require("./src/auth/local-strategy");
 const authRoute = require("./src/routes/authRouter");
 const MongoStore = require("connect-mongo");
-const candidateRouter = require("./src/routes/candidateRoutes")
+const candidateRouter = require("./src/routes/candidateRoutes");
 
-;(async () => {
-  mongoose.connect(
-    `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASS}@cluster0.y3gibzq.mongodb.net/`
-  )
-    ? console.log("DB Connected!")
-    : console.log("Failed to connect DB");
+(async () => {
+  try {
+    await mongoose.connect(
+      `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASS}@cluster0.y3gibzq.mongodb.net/`
+    );
+    console.log("DB Connected!");
 
-  app.use(express.json());
-  app.use('/uploads', express.static('uploads'));
+    app.use(express.json());
+    app.use("/uploads", express.static("uploads"));
 
-  app.use(
-    session({
-      secret: process.env.SESS_SECRET,
-      saveUninitialized: false,
-      resave: false,
-      cookie: { maxAge: 1000 * 60 * 60 },
-      store: MongoStore.create({
-        client: mongoose.connection.getClient(),
-      }),
-    })
-  );
-  app.use(passport.initialize(), passport.session());
-  app.use(authRoute);
-  app.use(employerRouter, candidateRouter);
+    app.use(
+      session({
+        secret: process.env.SESS_SECRET,
+        saveUninitialized: false,
+        resave: false,
+        cookie: { maxAge: 1000 * 60 * 60 },
+        store: MongoStore.create({
+          client: mongoose.connection.getClient(),
+        }),
+      })
+    );
 
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+    app.use(passport.initialize(), passport.session());
+    app.use(authRoute);
+    app.use(employerRouter, candidateRouter);
+
+    app.use((err, req, res, next) => {
+      console.error(err);
+      res.status(500).json({ message: err.message || "Something went wrong!" });
+    });
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect DB", error);
+  }
 })();
